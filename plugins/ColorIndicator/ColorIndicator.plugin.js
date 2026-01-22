@@ -74,20 +74,44 @@ module.exports = class Plugin {
 
   parseMessage = (messageContent) => {
     const colorCodeRegex = /#(?:[0-9a-fA-F]{3,6})\b|\b(?:rgb|rgba|hsl|hsla)\([^)]*\)|(?<=color:\s*)(\w+)(?=\s*(?:!important)?\s*;)/g;
-
+  
     messageContent.querySelectorAll("code").forEach((codeElement) => {
-      if(!codeElement.classList.contains("changed-indicator")) {
+      if (!codeElement.classList.contains("changed-indicator")) {
         codeElement.classList.add("changed-indicator");
+  
+        const codeText = codeElement.textContent;
+        const matches = [...codeText.matchAll(colorCodeRegex)];
+  
+        if (matches.length === 0) return;
 
-        const codeText = codeElement.textContent.slice();
-        const newCodeText = codeElement.textContent.replace(colorCodeRegex, (match) => {
-          const textColor = this.calculateLuminance(match) < 0.5 ? 'white' : 'black';
-          return `<span style="background-color:${match}; color:${textColor};">${match}</span>`;
+        while (codeElement.firstChild) {
+          codeElement.removeChild(codeElement.firstChild);
+        }
+  
+        let lastIndex = 0;
+        matches.forEach((match) => {
+          const matchText = match[0];
+          const startIndex = match.index;
+  
+          if (startIndex > lastIndex) {
+            const beforeText = codeText.substring(lastIndex, startIndex);
+            codeElement.appendChild(document.createTextNode(beforeText));
+          }
+
+          const textColor = this.calculateLuminance(matchText) < 0.5 ? 'white' : 'black';
+          const span = document.createElement('span');
+          span.style.backgroundColor = matchText;
+          span.style.color = textColor;
+          span.appendChild(document.createTextNode(matchText));
+          codeElement.appendChild(span);
+  
+          lastIndex = startIndex + matchText.length;
         });
 
-        if(newCodeText != codeText) {
-          codeElement.innerHTML = newCodeText;
-        } 
+        if (lastIndex < codeText.length) {
+          const afterText = codeText.substring(lastIndex);
+          codeElement.appendChild(document.createTextNode(afterText));
+        }
       }
     });
   };
