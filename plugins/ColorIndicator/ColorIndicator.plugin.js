@@ -7,9 +7,16 @@
  * @updateUrl https://raw.githubusercontent.com/BinaryQuantumSoul/discord-better-messages/main/plugins/ColorIndicator/ColorIndicator.plugin.js
  */
 
-const CLASS_SCROLLER_INNER = BdApi.Webpack.getByKeys("navigationDescription", "scrollerInner")["scrollerInner"];
-const CLASS_MESSAGE_LIST_ITEM = BdApi.Webpack.getByKeys("messageListItem")["messageListItem"];
-const CLASS_MESSAGE_CONTENT = BdApi.Webpack.getByKeys('threadMessageAccessoryContentLeadingIcon')["messageContent"]
+const MESSAGE_ITEM_SELECTOR = [
+  '[data-list-item-id^="chat-messages_"]',
+  'li[id^="chat-messages-"]',
+  '[class*="messageListItem"]'
+].join(", ");
+
+const MESSAGE_CONTENT_SELECTOR = [
+  '[class*="messageContent"]',
+  '[id^="message-content-"]'
+].join(", ");
 
 module.exports = class Plugin {
   observer = null;
@@ -27,10 +34,10 @@ module.exports = class Plugin {
     this.observer = new MutationObserver(this.handleMutations);
 
     //format existing messages and listen to new ones
-    const channels = document.querySelector("." + CLASS_SCROLLER_INNER);
+    const channels = this.findMessageContainer();
     if (channels) {
       //existing one
-      channels.querySelectorAll("." + CLASS_MESSAGE_CONTENT).forEach(this.parseMessage);
+      channels.querySelectorAll(MESSAGE_CONTENT_SELECTOR).forEach(this.parseMessage);
 
       //new ones
       this.observer.observe(channels, {
@@ -47,19 +54,25 @@ module.exports = class Plugin {
     for (const mutation of mutationsList) {
       if (mutation.type === "childList") {
         for (const node of mutation.addedNodes) {
-          if (node.classList && node.classList.contains(CLASS_MESSAGE_CONTENT)) {
+          if (!(node instanceof HTMLElement)) continue;
+
+          if (node.matches(MESSAGE_CONTENT_SELECTOR)) {
             timeoutId = setTimeout(() => {
               //unedited message
               this.parseMessage(node);
               timeoutId = null;
             }, 500);
-          } else if (node.classList && node.classList.contains(CLASS_MESSAGE_LIST_ITEM)) {
+          } else if (node.matches(MESSAGE_ITEM_SELECTOR)) {
             //new message
-            this.parseMessage(node.querySelector("." + CLASS_MESSAGE_CONTENT));
+            this.parseMessage(node.querySelector(MESSAGE_CONTENT_SELECTOR));
+          } else {
+            node.querySelectorAll(MESSAGE_CONTENT_SELECTOR).forEach((messageContent) => {
+              this.parseMessage(messageContent);
+            });
           }
         }
       } else if (mutation.type === "characterData") {
-        const messageContent = mutation.target.parentNode.closest("." + CLASS_MESSAGE_CONTENT);
+        const messageContent = mutation.target.parentNode?.closest?.(MESSAGE_CONTENT_SELECTOR);
         if (messageContent) {
           //edited message
           if (timeoutId !== null) {
@@ -72,7 +85,15 @@ module.exports = class Plugin {
     }
   };
 
+  findMessageContainer = () => {
+    return document.querySelector('[data-list-id="chat-messages"]')
+      || document.querySelector('[aria-label^="Messages"]')
+      || document.querySelector('[class*="scrollerInner"]');
+  };
+
   parseMessage = (messageContent) => {
+    if (!(messageContent instanceof HTMLElement)) return;
+
     const colorCodeRegex = /#(?:[0-9a-fA-F]{3,6})\b|\b(?:rgb|rgba|hsl|hsla)\([^)]*\)|(?<=color:\s*)(\w+)(?=\s*(?:!important)?\s*;)/g;
   
     messageContent.querySelectorAll("code").forEach((codeElement) => {
