@@ -1,1 +1,4 @@
 plugins/LaTexRenderer
+tmp/
+AGENTS.md
+.venv/
